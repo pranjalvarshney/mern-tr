@@ -22,7 +22,7 @@ mongoose.connect(
 );
 
 io.on("connect", (socket) => {
-  socket.on("create-game", async (playerName) => {
+  socket.on("create-game", async ({ name: playerName }) => {
     try {
       const data = await GameApi();
       let game = new Game();
@@ -43,12 +43,12 @@ io.on("connect", (socket) => {
     }
   });
 
-  socket.on("join-game", async ({ playerName, gameId: _id }) => {
+  socket.on("join-game", async ({ name: playerName, gameId: _id }) => {
     try {
-      let data = await Game.findById(_id);
+      let game = await Game.findById(_id);
       if (game.isOpen) {
         const gameID = game._id.toString();
-        socket.join(gameId);
+        socket.join(gameID);
         let player = {
           socketId: socket.id,
           name: playerName,
