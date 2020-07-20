@@ -29,6 +29,11 @@ const GameSchema = new mongoose.Schema({
     },
     isOver: {
         type: Boolean,
-        default:false,
-    }
+        default: false,
+    },
+    players: [PlayerSchema],
+    startTime: {
+        type: Number,
+    },
 })
+module.exports = mongoose.model("Game",GameSchema)  
