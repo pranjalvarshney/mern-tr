@@ -4,6 +4,7 @@ const socket = require("socket.io");
 const mongoose = require("mongoose");
 const Game = require("./models/game");
 const GameApi = require("./api/gameapi");
+const game = require("./models/game");
 
 const port = process.env.PORT;
 
@@ -37,6 +38,26 @@ io.on("connect", (socket) => {
       const gameId = game._id.toString();
       socket.join(gameId);
       io.to(gameId).emit("update-game", game);
+    } catch (error) {
+      console.log(error);
+    }
+  });
+
+  socket.on("join-game", async ({ playerName, gameId: _id }) => {
+    try {
+      let data = await Game.findById(_id);
+      if (game.isOpen) {
+        const gameID = game._id.toString();
+        socket.join(gameId);
+        let player = {
+          socketId: socket.id,
+          name: playerName,
+          isGameLeader: false,
+        };
+        game.players.push(player);
+        game = await game.save();
+        io.to(gameID).emit("update-game", game);
+      }
     } catch (error) {
       console.log(error);
     }
