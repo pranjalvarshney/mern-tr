@@ -4,8 +4,6 @@ const socket = require("socket.io");
 const mongoose = require("mongoose");
 const Game = require("./models/game");
 const GameApi = require("./api/gameapi");
-const game = require("./models/game");
-
 const port = process.env.PORT;
 
 const expressServer = app.listen(port, () => {
@@ -35,15 +33,15 @@ io.on("connect", (socket) => {
       game.players.push(player);
       game = await game.save();
 
-      const gameId = game._id.toString();
-      socket.join(gameId);
-      io.to(gameId).emit("update-game", game);
+      const gameID = game._id.toString();
+      socket.join(gameID);
+      io.to(gameID).emit("update-game", game);
     } catch (error) {
       console.log(error);
     }
   });
 
-  socket.on("join-game", async ({ name: playerName, gameId: _id }) => {
+  socket.on("join-game", async ({ name: playerName, gameID: _id }) => {
     try {
       let game = await Game.findById(_id);
       if (game.isOpen) {
@@ -62,4 +60,76 @@ io.on("connect", (socket) => {
       console.log(error);
     }
   });
+  socket.on("timer", async ({ playerID, gameID }) => {
+    let countdown = 5;
+    let game = await Game.findById(gameID);
+    let player = game.players.id(playerID);
+    if (player.isGameLeader) {
+      let timerID = setInterval(async () => {
+        if (countdown >= 0) {
+          io.to(gameID).emit("timer", { countdown, msg: "Starting game " });
+          countdown--;
+        } else {
+          game.isOpen = false;
+          game = await game.save();
+          io.to(gameID).emit("update-game", game);
+          // startGameClock(gameID);
+          clearInterval(timerID);
+        }
+      }, 1000);
+    }
+  });
 });
+
+const startGameClock = async (gameID) => {
+  let game = await Game.findById(gameID);
+  game.startTime = new Date().getTime();
+  game = await game.save();
+  let time = 60;
+  let timerID = setInterval(
+    (function gameIntervalFunction() {
+      if (time >= 0) {
+        const formatTime = calculate(time);
+        io.to(gameID).emit("timer", {
+          countdown: formatTime,
+          msg: "Time remaining",
+        });
+        time--;
+      } else {
+        (async () => {
+          let endtime = new Date().getTime();
+          let game = await Game.findById(gameID);
+          let { startTime } = game;
+          game.isOver = true;
+          game.players.forEach((player, index) => {
+            if (player.wpm === -1) {
+              game.players[index].wpm = calculateWPM(
+                startTime,
+                endtime,
+                player
+              );
+            }
+          });
+          game = await game.save();
+          io.to(gameID).emit("update-game", game);
+          clearInterval(timerID);
+        })();
+      }
+      return gameIntervalFunction;
+    })(),
+    1000
+  );
+};
+
+const calculateTime = (time) => {
+  let seconds = time % 60;
+  return seconds;
+};
+
+const calculateWPM = (startTime, endtime, player) => {
+  let length = player.currentWordIndex;
+  const time = (endtime - startTime) / 1000;
+  const timeInMinutes = time / 60;
+  const wpm = Math.floor(length / timeInMinutes);
+  return wpm;
+};
