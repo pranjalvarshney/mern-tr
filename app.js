@@ -4,6 +4,7 @@ const socket = require("socket.io");
 const mongoose = require("mongoose");
 const Game = require("./models/game");
 const GameApi = require("./api/gameapi");
+const { update } = require("./models/game");
 const port = process.env.PORT;
 
 const expressServer = app.listen(port, () => {
@@ -77,6 +78,35 @@ io.on("connect", (socket) => {
           clearInterval(timerID);
         }
       }, 1000);
+    }
+  });
+
+  socket.on("user-input", async ({ userInput, gameID }) => {
+    try {
+      let game = await Game.findById(gameID);
+      console.log(game);
+      if (!game.isOpen && !game.isOver) {
+        let player = game.players.find(
+          (player) => player.socketId === socket.id
+        );
+        let word = game.words[player.currentWordIndex];
+        if (word === userInput) {
+          player.currentWordIndex++;
+          if (player.currentWordIndex !== game.words.length) {
+            game = await game.save();
+            io.to(gameID).emit("update-game", game);
+          } else {
+            let endtime = new Date().getTime();
+            let { startTime } = game;
+            player.wpm = calculateWPM(startTime, endtime, player);
+            game = await game.save();
+            socket.emit("done");
+            io.to(gameID).emit("update-game", game);
+          }
+        }
+      }
+    } catch (error) {
+      console.log(error);
     }
   });
 });
