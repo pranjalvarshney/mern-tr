@@ -21,7 +21,7 @@ mongoose.connect(
 );
 
 io.on("connect", (socket) => {
-  socket.on("create-game", async ({ name: playerName }) => {
+  socket.on("create-game", async (playerName) => {
     try {
       const data = await GameApi();
       let game = new Game();
@@ -42,7 +42,7 @@ io.on("connect", (socket) => {
     }
   });
 
-  socket.on("join-game", async ({ name: playerName, gameID: _id }) => {
+  socket.on("join-game", async ({ playerName: name, gameID: _id }) => {
     try {
       let game = await Game.findById(_id);
       if (game.isOpen) {
@@ -50,7 +50,7 @@ io.on("connect", (socket) => {
         socket.join(gameID);
         let player = {
           socketId: socket.id,
-          name: playerName,
+          name,
           isGameLeader: false,
         };
         game.players.push(player);
@@ -74,7 +74,7 @@ io.on("connect", (socket) => {
           game.isOpen = false;
           game = await game.save();
           io.to(gameID).emit("update-game", game);
-          // startGameClock(gameID);
+          startGameClock(gameID);
           clearInterval(timerID);
         }
       }, 1000);
@@ -112,14 +112,15 @@ io.on("connect", (socket) => {
 });
 
 const startGameClock = async (gameID) => {
-  let game = await Game.findById(gameID);
-  game.startTime = new Date().getTime();
-  game = await game.save();
-  let time = 60;
-  let timerID = setInterval(
-    (function gameIntervalFunction() {
+  try {
+    let game = await Game.findById(gameID);
+    game.startTime = new Date().getTime();
+    game = await game.save();
+    let time = 120;
+
+    let timerID = setInterval(function gameIntervalFunction() {
       if (time >= 0) {
-        const formatTime = calculate(time);
+        const formatTime = calculateTime(time);
         io.to(gameID).emit("timer", {
           countdown: formatTime,
           msg: "Time remaining",
@@ -146,14 +147,16 @@ const startGameClock = async (gameID) => {
         })();
       }
       return gameIntervalFunction;
-    })(),
-    1000
-  );
+    }, 1000)();
+  } catch (error) {
+    console.log(error);
+  }
 };
 
 const calculateTime = (time) => {
+  let minutes = Math.floor(time / 60);
   let seconds = time % 60;
-  return seconds;
+  return `${minutes}:${seconds < 10 ? "0" + seconds : seconds}`;
 };
 
 const calculateWPM = (startTime, endtime, player) => {

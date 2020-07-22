@@ -16,7 +16,7 @@ const PlayerSchema = new mongoose.Schema({
     type: Number,
     default: -1,
   },
-  playerName: {
+  name: {
     type: String,
   },
 });
